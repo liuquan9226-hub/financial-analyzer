@@ -1,0 +1,1550 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>财务分析工具</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --primary: #1a56db;
+    --primary-light: #e8f0fe;
+    --success: #057a55;
+    --success-light: #def7ec;
+    --danger: #c81e1e;
+    --danger-light: #fde8e8;
+    --warning: #c27803;
+    --warning-light: #fdf6b2;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-400: #9ca3af;
+    --gray-500: #6b7280;
+    --gray-600: #4b5563;
+    --gray-700: #374151;
+    --gray-800: #1f2937;
+    --gray-900: #111827;
+    --sidebar-w: 380px;
+    --header-h: 64px;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--gray-100);
+    color: var(--gray-800);
+    font-size: 13px;
+    line-height: 1.5;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ===== HEADER ===== */
+  #header {
+    height: var(--header-h);
+    background: #fff;
+    border-bottom: 1px solid var(--gray-200);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 16px;
+    flex-shrink: 0;
+    z-index: 10;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  }
+  #header h1 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--primary);
+    white-space: nowrap;
+  }
+  #header .meta-inputs {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex: 1;
+  }
+  #header .meta-inputs label {
+    font-size: 12px;
+    color: var(--gray-500);
+    white-space: nowrap;
+  }
+  #header .meta-inputs input {
+    border: 1px solid var(--gray-200);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 13px;
+    outline: none;
+    transition: border-color .15s;
+    background: var(--gray-50);
+  }
+  #header .meta-inputs input:focus { border-color: var(--primary); background: #fff; }
+  #company-name { width: 200px; }
+  #currency { width: 80px; }
+  #year1, #year2, #year3 { width: 70px; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all .15s;
+    white-space: nowrap;
+  }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: #1749c5; }
+  .btn-secondary { background: #fff; color: var(--gray-700); border: 1px solid var(--gray-300); }
+  .btn-secondary:hover { background: var(--gray-50); }
+  .btn-success { background: var(--success); color: #fff; }
+  .btn-success:hover { background: #046c4e; }
+
+  /* ===== LAYOUT ===== */
+  #app {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ===== SIDEBAR ===== */
+  #sidebar {
+    width: var(--sidebar-w);
+    background: #fff;
+    border-right: 1px solid var(--gray-200);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  #sidebar-header {
+    padding: 12px 16px;
+    background: var(--gray-50);
+    border-bottom: 1px solid var(--gray-200);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  #sidebar-header span { font-weight: 600; font-size: 13px; color: var(--gray-700); }
+  #sidebar-content {
+    overflow-y: auto;
+    flex: 1;
+    padding: 0 0 16px;
+  }
+  #sidebar-content::-webkit-scrollbar { width: 4px; }
+  #sidebar-content::-webkit-scrollbar-track { background: transparent; }
+  #sidebar-content::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 2px; }
+
+  .input-section {
+    border-bottom: 1px solid var(--gray-100);
+  }
+  .input-section-title {
+    padding: 10px 16px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    color: var(--gray-500);
+    background: var(--gray-50);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+  }
+  .input-section-title:hover { background: var(--gray-100); }
+  .section-toggle { font-size: 10px; color: var(--gray-400); }
+  .input-section-body { padding: 4px 16px 8px; }
+  .input-section-body.collapsed { display: none; }
+
+  .input-row {
+    display: grid;
+    grid-template-columns: 1fr 72px 72px 72px;
+    gap: 4px;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .input-row-label {
+    font-size: 12px;
+    color: var(--gray-600);
+    padding-right: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .input-row-label.auto-calc {
+    color: var(--primary);
+    font-style: italic;
+  }
+  .finput {
+    border: 1px solid var(--gray-200);
+    border-radius: 5px;
+    padding: 4px 6px;
+    font-size: 12px;
+    text-align: right;
+    width: 100%;
+    outline: none;
+    transition: border-color .15s;
+    background: #fff;
+    color: var(--gray-800);
+  }
+  .finput:focus { border-color: var(--primary); }
+  .finput[readonly] { background: var(--gray-50); color: var(--gray-500); cursor: default; }
+  .finput.optional { background: #fff; border-style: dashed; }
+
+  .input-header-row {
+    display: grid;
+    grid-template-columns: 1fr 72px 72px 72px;
+    gap: 4px;
+    margin-bottom: 6px;
+    padding-top: 4px;
+  }
+  .input-header-row span {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gray-400);
+    text-align: center;
+  }
+  .input-header-row span:first-child { text-align: left; }
+
+  /* ===== MAIN PANEL ===== */
+  #main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  #main::-webkit-scrollbar { width: 6px; }
+  #main::-webkit-scrollbar-track { background: transparent; }
+  #main::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 3px; }
+
+  #empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--gray-400);
+    text-align: center;
+  }
+  #empty-state svg { opacity: .3; }
+  #empty-state h2 { font-size: 18px; color: var(--gray-500); }
+  #empty-state p { font-size: 13px; max-width: 340px; }
+
+  /* ===== RESULT SECTIONS ===== */
+  .result-section {
+    background: #fff;
+    border-radius: 10px;
+    border: 1px solid var(--gray-200);
+    overflow: hidden;
+  }
+  .result-section-header {
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    background: #fff;
+    border-bottom: 1px solid var(--gray-100);
+    user-select: none;
+  }
+  .result-section-header:hover { background: var(--gray-50); }
+  .result-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--gray-800);
+  }
+  .section-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+  }
+  .result-section-body { padding: 0; }
+  .result-section-body.collapsed { display: none; }
+
+  /* ===== METRIC TABLE ===== */
+  .metric-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .metric-table thead th {
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gray-400);
+    text-align: right;
+    background: var(--gray-50);
+    border-bottom: 1px solid var(--gray-100);
+    white-space: nowrap;
+  }
+  .metric-table thead th:first-child { text-align: left; }
+  .metric-table tbody tr { border-bottom: 1px solid var(--gray-50); }
+  .metric-table tbody tr:last-child { border-bottom: none; }
+  .metric-table tbody tr:hover { background: var(--gray-50); }
+  .metric-table td {
+    padding: 7px 12px;
+    text-align: right;
+    font-size: 12px;
+    color: var(--gray-700);
+  }
+  .metric-table td:first-child {
+    text-align: left;
+    color: var(--gray-600);
+    font-size: 12px;
+  }
+  .metric-num { font-variant-numeric: tabular-nums; font-weight: 500; }
+  .metric-name { max-width: 200px; }
+  .metric-idx { color: var(--gray-300); font-size: 10px; margin-right: 4px; }
+
+  .change-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 4px;
+    margin-left: 4px;
+  }
+  .change-up { color: var(--success); background: var(--success-light); }
+  .change-down { color: var(--danger); background: var(--danger-light); }
+  .change-neutral { color: var(--gray-500); background: var(--gray-100); }
+
+  .alert-high { background: var(--danger-light) !important; }
+  .alert-medium { background: var(--warning-light) !important; }
+  td.val-alert { color: var(--danger) !important; font-weight: 700; }
+  td.val-warn { color: var(--warning) !important; font-weight: 600; }
+
+  .na-val { color: var(--gray-300); font-style: italic; font-size: 11px; }
+
+  /* ===== CHARTS ===== */
+  .charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 12px;
+  }
+  .chart-box {
+    background: var(--gray-50);
+    border-radius: 8px;
+    padding: 12px;
+    border: 1px solid var(--gray-100);
+  }
+  .chart-box h4 {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gray-500);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+  }
+  .chart-box canvas { max-height: 180px; }
+
+  /* ===== SUMMARY CARDS ===== */
+  #summary-cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  .summary-card {
+    background: #fff;
+    border-radius: 10px;
+    border: 1px solid var(--gray-200);
+    padding: 14px 16px;
+  }
+  .summary-card-label { font-size: 11px; color: var(--gray-400); margin-bottom: 4px; }
+  .summary-card-value { font-size: 22px; font-weight: 700; color: var(--gray-800); }
+  .summary-card-sub { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
+
+  /* ===== SCORE PANEL ===== */
+  #score-panel {
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .score-circle {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    flex-shrink: 0;
+    border: 4px solid;
+  }
+  .score-circle .score-num { font-size: 26px; line-height: 1; }
+  .score-circle .score-label { font-size: 10px; margin-top: 2px; }
+  .score-A { border-color: var(--success); color: var(--success); background: var(--success-light); }
+  .score-B { border-color: #0369a1; color: #0369a1; background: #e0f2fe; }
+  .score-C { border-color: var(--warning); color: var(--warning); background: var(--warning-light); }
+  .score-D { border-color: var(--danger); color: var(--danger); background: var(--danger-light); }
+  .score-desc { flex: 1; }
+  .score-desc h3 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .score-desc p { font-size: 12px; color: var(--gray-500); }
+  .score-bars { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .score-bar-row { display: flex; align-items: center; gap: 8px; }
+  .score-bar-label { font-size: 11px; color: var(--gray-500); width: 70px; flex-shrink: 0; }
+  .score-bar-track { flex: 1; background: var(--gray-100); border-radius: 4px; height: 6px; }
+  .score-bar-fill { height: 6px; border-radius: 4px; }
+  .score-bar-val { font-size: 11px; font-weight: 600; width: 28px; text-align: right; }
+
+  /* ===== PDF EXPORT ===== */
+  #pdf-export-area { display: none; }
+
+  /* ===== THRESHOLDS MODAL ===== */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.4);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal {
+    background: #fff;
+    border-radius: 12px;
+    width: 480px;
+    max-height: 80vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0,0,0,.2);
+  }
+  .modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--gray-200);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .modal-header h2 { font-size: 15px; font-weight: 700; }
+  .modal-close { background: none; border: none; cursor: pointer; color: var(--gray-400); font-size: 18px; }
+  .modal-body { padding: 16px 20px; overflow-y: auto; flex: 1; }
+  .modal-footer { padding: 12px 20px; border-top: 1px solid var(--gray-200); display: flex; justify-content: flex-end; gap: 8px; }
+  .threshold-row { display: grid; grid-template-columns: 1fr 80px 80px; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .threshold-row label { font-size: 12px; color: var(--gray-600); }
+  .threshold-row input { border: 1px solid var(--gray-200); border-radius: 5px; padding: 4px 8px; font-size: 12px; text-align: center; outline: none; }
+  .threshold-row input:focus { border-color: var(--primary); }
+  .threshold-hdr { font-size: 11px; color: var(--gray-400); text-align: center; }
+
+  /* ===== LOADING ===== */
+  .loading-bar {
+    height: 2px;
+    background: linear-gradient(90deg, var(--primary), #60a5fa);
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 0;
+    z-index: 9999;
+    transition: width .3s;
+  }
+
+  /* tooltip */
+  [data-tip] { position: relative; cursor: help; }
+  [data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 4px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--gray-800);
+    color: #fff;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 5px;
+    white-space: nowrap;
+    z-index: 50;
+    pointer-events: none;
+  }
+
+  @media print {
+    body { overflow: visible; height: auto; }
+    #header, #sidebar { display: none; }
+    #main { overflow: visible; padding: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="loading-bar" id="loading-bar"></div>
+
+<!-- HEADER -->
+<div id="header">
+  <h1>📊 财务分析工具</h1>
+  <div class="meta-inputs">
+    <label>公司</label>
+    <input type="text" id="company-name" placeholder="公司名称" value="">
+    <label>币种</label>
+    <input type="text" id="currency" placeholder="人民币" value="人民币">
+    <label>单位</label>
+    <select id="unit" style="border:1px solid var(--gray-200);border-radius:6px;padding:5px 8px;font-size:13px;background:var(--gray-50);outline:none;">
+      <option value="1">元</option>
+      <option value="10000" selected>万元</option>
+      <option value="100000000">亿元</option>
+    </select>
+    <label>Y1</label><input type="text" id="year1" placeholder="2022" value="2022">
+    <label>Y2</label><input type="text" id="year2" placeholder="2023" value="2023">
+    <label>Y3</label><input type="text" id="year3" placeholder="2024" value="2024">
+  </div>
+  <button class="btn btn-secondary" onclick="openThresholds()">⚙️ 阈值</button>
+  <button class="btn btn-primary" onclick="calculate()">▶ 计算分析</button>
+  <button class="btn btn-success" onclick="exportPDF()">↓ 导出PDF</button>
+</div>
+
+<!-- APP -->
+<div id="app">
+
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <span>📋 输入财务数据</span>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-secondary" style="padding:4px 8px;font-size:11px;" onclick="loadDemo()">示例数据</button>
+        <button class="btn btn-secondary" style="padding:4px 8px;font-size:11px;" onclick="clearAll()">清空</button>
+      </div>
+    </div>
+    <div id="sidebar-content">
+
+      <!-- ---- 利润表 ---- -->
+      <div class="input-section">
+        <div class="input-section-title" onclick="toggleSection(this)">
+          <span>📄 利润表</span><span class="section-toggle">▼</span>
+        </div>
+        <div class="input-section-body">
+          <div class="input-header-row">
+            <span>项目</span>
+            <span id="h1">Y1</span><span id="h2">Y2</span><span id="h3">Y3</span>
+          </div>
+          <!-- rows generated by JS -->
+          <div id="is-rows"></div>
+        </div>
+      </div>
+
+      <!-- ---- 资产负债表 ---- -->
+      <div class="input-section">
+        <div class="input-section-title" onclick="toggleSection(this)">
+          <span>🏦 资产负债表</span><span class="section-toggle">▼</span>
+        </div>
+        <div class="input-section-body">
+          <div class="input-header-row">
+            <span>项目</span>
+            <span>Y1</span><span>Y2</span><span>Y3</span>
+          </div>
+          <div id="bs-rows"></div>
+        </div>
+      </div>
+
+      <!-- ---- 现金流量表 ---- -->
+      <div class="input-section">
+        <div class="input-section-title" onclick="toggleSection(this)">
+          <span>💵 现金流量表</span><span class="section-toggle">▼</span>
+        </div>
+        <div class="input-section-body">
+          <div class="input-header-row">
+            <span>项目</span>
+            <span>Y1</span><span>Y2</span><span>Y3</span>
+          </div>
+          <div id="cf-rows"></div>
+        </div>
+      </div>
+
+      <!-- ---- 市场数据 ---- -->
+      <div class="input-section">
+        <div class="input-section-title" onclick="toggleSection(this)">
+          <span>📈 市场数据（可选）</span><span class="section-toggle">▼</span>
+        </div>
+        <div class="input-section-body">
+          <div class="input-header-row">
+            <span>项目</span>
+            <span>Y1</span><span>Y2</span><span>Y3</span>
+          </div>
+          <div id="mkt-rows"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+    <div id="empty-state">
+      <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+        <rect x="8" y="8" width="48" height="48" rx="8" fill="#6b7280"/>
+        <rect x="16" y="24" width="8" height="20" rx="2" fill="white"/>
+        <rect x="28" y="18" width="8" height="26" rx="2" fill="white"/>
+        <rect x="40" y="30" width="8" height="14" rx="2" fill="white"/>
+      </svg>
+      <h2>填写左侧数据后点击「计算分析」</h2>
+      <p>支持49个财务指标自动计算，8大模块分析，含DuPont拆解、成长性、估值、风险等维度。<br>点击「示例数据」快速体验。</p>
+    </div>
+    <div id="results" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- THRESHOLDS MODAL -->
+<div class="modal-overlay" id="modal-overlay" style="display:none;" onclick="if(event.target===this)closeThresholds()">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>⚙️ 异常值阈值配置</h2>
+      <button class="modal-close" onclick="closeThresholds()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 80px 80px;gap:8px;margin-bottom:8px;">
+        <span class="threshold-hdr" style="text-align:left;font-size:11px;color:var(--gray-500);">指标</span>
+        <span class="threshold-hdr">⚠️ 警告</span>
+        <span class="threshold-hdr">🔴 危险</span>
+      </div>
+      <div id="threshold-rows"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="resetThresholds()">恢复默认</button>
+      <button class="btn btn-primary" onclick="closeThresholds()">确认</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  DATA DEFINITIONS
+// ============================================================
+const IS_FIELDS = [
+  { id:'revenue',    label:'营业收入',       auto:false },
+  { id:'cogs',       label:'营业成本',       auto:false },
+  { id:'grossProfit',label:'毛利润',         auto:true,  formula:'revenue-cogs' },
+  { id:'sga',        label:'SG&A费用',       auto:false },
+  { id:'ebit',       label:'EBIT',           auto:true,  formula:'grossProfit-sga' },
+  { id:'da',         label:'折旧与摊销',     auto:false },
+  { id:'interest',   label:'利息费用',       auto:false },
+  { id:'ebt',        label:'税前利润',       auto:false },
+  { id:'tax',        label:'所得税',         auto:false },
+  { id:'netIncome',  label:'净利润',         auto:false },
+];
+const BS_FIELDS = [
+  { id:'cash',         label:'现金及等价物'   },
+  { id:'ar',           label:'应收账款'       },
+  { id:'inventory',    label:'存货'           },
+  { id:'currentAssets',label:'流动资产合计'   },
+  { id:'totalAssets',  label:'总资产'         },
+  { id:'ap',           label:'应付账款'       },
+  { id:'currentLiab',  label:'流动负债合计'   },
+  { id:'stDebt',       label:'短期借款'       },
+  { id:'ltDebt',       label:'长期借款'       },
+  { id:'totalLiab',    label:'总负债'         },
+  { id:'equity',       label:'股东权益'       },
+  { id:'goodwill',     label:'商誉'           },
+  { id:'ppe',          label:'固定资产'       },
+  { id:'relatedParty', label:'关联交易金额'   },
+];
+const CF_FIELDS = [
+  { id:'cfo',  label:'经营活动现金流' },
+  { id:'capex',label:'资本开支CapEx'  },
+  { id:'divid',label:'股息支付'       },
+  { id:'rnd',  label:'研发投入'       },
+];
+const MKT_FIELDS = [
+  { id:'mktCap', label:'股票市值', optional:true },
+  { id:'netDebt',label:'净有息负债', optional:true },
+];
+
+// ============================================================
+//  DEFAULT THRESHOLDS
+// ============================================================
+const DEFAULT_THRESHOLDS = [
+  { id:'grossMargin',  label:'毛利率',        warnLow:0.1,  dangerLow:0.05, warnHigh:null, dangerHigh:null, pct:true },
+  { id:'netMargin',    label:'净利率',        warnLow:0.03, dangerLow:0,    warnHigh:null, dangerHigh:null, pct:true },
+  { id:'roe',          label:'ROE',           warnLow:0.08, dangerLow:0,    warnHigh:0.4,  dangerHigh:0.6,  pct:true },
+  { id:'currentRatio', label:'流动比率',      warnLow:1.0,  dangerLow:0.8,  warnHigh:null, dangerHigh:null, pct:false },
+  { id:'quickRatio',   label:'速动比率',      warnLow:0.8,  dangerLow:0.5,  warnHigh:null, dangerHigh:null, pct:false },
+  { id:'debtRatio',    label:'资产负债率',    warnLow:null, dangerLow:null, warnHigh:0.6,  dangerHigh:0.8,  pct:true },
+  { id:'icr',          label:'利息覆盖倍数',  warnLow:2,    dangerLow:1,    warnHigh:null, dangerHigh:null, pct:false },
+  { id:'cfo2ni',       label:'利润含金量',    warnLow:0.5,  dangerLow:0,    warnHigh:null, dangerHigh:null, pct:false },
+  { id:'goodwillRatio',label:'商誉/总资产',   warnLow:null, dangerLow:null, warnHigh:0.2,  dangerHigh:0.4,  pct:true },
+  { id:'debtEbitda',   label:'债务/EBITDA',   warnLow:null, dangerLow:null, warnHigh:4,    dangerHigh:6,    pct:false },
+];
+let thresholds = JSON.parse(JSON.stringify(DEFAULT_THRESHOLDS));
+
+// ============================================================
+//  BUILD INPUT ROWS
+// ============================================================
+function makeInputRow(f, container) {
+  const row = document.createElement('div');
+  row.className = 'input-row';
+  const lbl = document.createElement('div');
+  lbl.className = 'input-row-label' + (f.auto ? ' auto-calc' : '');
+  lbl.textContent = f.label + (f.auto ? ' *' : '');
+  lbl.title = f.auto ? '自动计算' : '';
+  row.appendChild(lbl);
+  for (let y = 1; y <= 3; y++) {
+    const inp = document.createElement('input');
+    inp.type = 'number';
+    inp.step = 'any';
+    inp.className = 'finput' + (f.optional ? ' optional' : '');
+    inp.id = f.id + '_y' + y;
+    inp.placeholder = f.optional ? '可选' : '0';
+    if (f.auto) inp.readOnly = true;
+    inp.addEventListener('input', () => autoCalc());
+    row.appendChild(inp);
+  }
+  container.appendChild(row);
+}
+
+function buildInputs() {
+  ['is-rows','bs-rows','cf-rows','mkt-rows'].forEach(id => {
+    document.getElementById(id).innerHTML = '';
+  });
+  IS_FIELDS.forEach(f => makeInputRow(f, document.getElementById('is-rows')));
+  BS_FIELDS.forEach(f => makeInputRow(f, document.getElementById('bs-rows')));
+  CF_FIELDS.forEach(f => makeInputRow(f, document.getElementById('cf-rows')));
+  MKT_FIELDS.forEach(f => makeInputRow(f, document.getElementById('mkt-rows')));
+}
+
+// ============================================================
+//  AUTO CALC (grossProfit, ebit)
+// ============================================================
+function autoCalc() {
+  for (let y = 1; y <= 3; y++) {
+    const rev = parseNum('revenue_y' + y);
+    const cogs = parseNum('cogs_y' + y);
+    const gp = rev - cogs;
+    setInput('grossProfit_y' + y, gp, rev !== 0 || cogs !== 0);
+
+    const sga = parseNum('sga_y' + y);
+    const ebit = gp - sga;
+    setInput('ebit_y' + y, ebit, (rev !== 0 || cogs !== 0 || sga !== 0));
+  }
+  syncYearHeaders();
+}
+
+function setInput(id, val, cond) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.value = cond ? fmtInputNum(val) : '';
+}
+function fmtInputNum(v) {
+  if (v === null || v === undefined || isNaN(v)) return '';
+  return parseFloat(v.toFixed(6));
+}
+
+function parseNum(id) {
+  const el = document.getElementById(id);
+  if (!el) return 0;
+  const v = parseFloat(el.value);
+  return isNaN(v) ? 0 : v;
+}
+
+function syncYearHeaders() {
+  document.querySelectorAll('#h1,#h2,#h3').forEach((el, i) => {
+    const yr = document.getElementById('year' + (i+1)).value || ('Y'+(i+1));
+    el.textContent = yr;
+  });
+}
+
+// ============================================================
+//  GET ALL DATA
+// ============================================================
+function getData() {
+  const d = {};
+  [...IS_FIELDS, ...BS_FIELDS, ...CF_FIELDS, ...MKT_FIELDS].forEach(f => {
+    d[f.id] = [1,2,3].map(y => parseNum(f.id + '_y' + y));
+  });
+  return d;
+}
+
+function getYears() {
+  return [1,2,3].map(i => document.getElementById('year'+i).value || ('Y'+i));
+}
+
+// ============================================================
+//  CALCULATE 49 METRICS
+// ============================================================
+function pct(v) { return v; } // store as decimal, format as %
+
+function calcMetrics(d) {
+  const m = {};
+
+  // helpers
+  const safe = (a, b) => (b !== 0 && b !== null && !isNaN(b)) ? a / b : null;
+  const arr = (fn) => [0,1,2].map(fn);
+
+  // derived
+  const ebitda = arr(i => d.ebit[i] + d.da[i]);
+  m.ebitda = ebitda;
+
+  // ── 1. 盈利能力 ──────────────────────────────────────────
+  m.grossMargin    = arr(i => safe(d.grossProfit[i], d.revenue[i]));
+  m.ebitdaMargin   = arr(i => safe(ebitda[i], d.revenue[i]));
+  m.ebitMargin     = arr(i => safe(d.ebit[i], d.revenue[i]));
+  m.netMargin      = arr(i => safe(d.netIncome[i], d.revenue[i]));
+  m.roe            = arr(i => safe(d.netIncome[i], d.equity[i]));
+  m.roa            = arr(i => safe(d.netIncome[i], d.totalAssets[i]));
+  const capitalEmployed = arr(i => d.totalAssets[i] - d.currentLiab[i]);
+  m.roce           = arr(i => safe(d.ebit[i], capitalEmployed[i]));
+
+  // operating leverage: (ΔGP/GP) / (ΔRev/Rev)
+  m.opLeverage = [null, null, null];
+  for (let i = 1; i <= 2; i++) {
+    const dGP = d.grossProfit[i] - d.grossProfit[i-1];
+    const dRev = d.revenue[i] - d.revenue[i-1];
+    const gpGrowth = safe(dGP, d.grossProfit[i-1]);
+    const revGrowth = safe(dRev, d.revenue[i-1]);
+    m.opLeverage[i] = safe(gpGrowth, revGrowth);
+  }
+
+  // ── 2. DuPont ─────────────────────────────────────────────
+  m.dupont_netMargin   = m.netMargin;
+  m.assetTurnover      = arr(i => safe(d.revenue[i], d.totalAssets[i]));
+  m.equityMultiplier   = arr(i => safe(d.totalAssets[i], d.equity[i]));
+  m.taxBurden          = arr(i => safe(d.tax[i], d.ebt[i]));
+  m.interestBurden     = arr(i => safe(d.ebt[i], d.ebit[i]));
+
+  // ── 3. 运营效率 ────────────────────────────────────────────
+  m.totalAssetTurnover = m.assetTurnover;
+  m.fixedAssetTurnover = arr(i => safe(d.revenue[i], d.ppe[i]));
+  m.dso                = arr(i => (d.revenue[i] ? d.ar[i] / d.revenue[i] * 365 : null));
+  m.dio                = arr(i => (d.cogs[i] ? d.inventory[i] / d.cogs[i] * 365 : null));
+  m.dpo                = arr(i => (d.cogs[i] ? d.ap[i] / d.cogs[i] * 365 : null));
+  m.ccc                = arr(i => {
+    const dso = m.dso[i], dio = m.dio[i], dpo = m.dpo[i];
+    return (dso !== null && dio !== null && dpo !== null) ? dso + dio - dpo : null;
+  });
+
+  // ── 4. 偿债与杠杆 ──────────────────────────────────────────
+  const interestBearingDebt = arr(i => d.stDebt[i] + d.ltDebt[i]);
+  m.debtRatio       = arr(i => safe(d.totalLiab[i], d.totalAssets[i]));
+  m.netDebtRatio    = arr(i => safe(interestBearingDebt[i] - d.cash[i], d.equity[i]));
+  m.debtEbitda      = arr(i => safe(interestBearingDebt[i], ebitda[i]));
+  m.icr             = arr(i => safe(d.ebit[i], d.interest[i]));
+  m.currentRatio    = arr(i => safe(d.currentAssets[i], d.currentLiab[i]));
+  m.quickRatio      = arr(i => safe(d.currentAssets[i] - d.inventory[i], d.currentLiab[i]));
+  m.cashRatio       = arr(i => safe(d.cash[i], d.currentLiab[i]));
+
+  // ── 5. 现金流质量 ──────────────────────────────────────────
+  m.cfo2ni  = arr(i => safe(d.cfo[i], d.netIncome[i]));
+  m.fcf     = arr(i => d.cfo[i] - d.capex[i]);
+  m.fcfMargin = arr(i => safe(m.fcf[i], d.revenue[i]));
+  m.capexDa = arr(i => safe(d.capex[i], d.da[i]));
+  m.capexRev= arr(i => safe(d.capex[i], d.revenue[i]));
+
+  // ── 6. 成长性 ─────────────────────────────────────────────
+  const growthRate = (arr, i) => i === 0 ? null : safe(arr[i] - arr[i-1], Math.abs(arr[i-1]));
+
+  m.revenueGrowth  = arr(i => growthRate(d.revenue, i));
+  m.niGrowth       = arr(i => growthRate(d.netIncome, i));
+  m.ebitdaGrowth   = arr(i => growthRate(ebitda, i));
+  m.gpGrowth       = arr(i => growthRate(d.grossProfit, i));
+
+  // CAGR over 3 years (Y1 to Y3)
+  const cagr = (v0, v2) => (v0 > 0 && v2 > 0) ? Math.pow(v2 / v0, 1/2) - 1 : null;
+  m.revenueCagr = [null, null, cagr(d.revenue[0], d.revenue[2])];
+  m.niCagr      = [null, null, cagr(d.netIncome[0], d.netIncome[2])];
+
+  // ── 7. 估值 ───────────────────────────────────────────────
+  const hasMarket = d.mktCap.some(v => v > 0);
+  m.pe     = arr(i => hasMarket && d.netIncome[i] ? safe(d.mktCap[i], d.netIncome[i]) : null);
+  m.pb     = arr(i => hasMarket && d.equity[i] ? safe(d.mktCap[i], d.equity[i]) : null);
+  const ev = arr(i => d.mktCap[i] + d.netDebt[i]);
+  m.evEbitda = arr(i => hasMarket && ebitda[i] ? safe(ev[i], ebitda[i]) : null);
+  m.evEbit   = arr(i => hasMarket && d.ebit[i] ? safe(ev[i], d.ebit[i]) : null);
+  m.pFcf     = arr(i => hasMarket && m.fcf[i] ? safe(d.mktCap[i], m.fcf[i]) : null);
+  m.peg      = arr(i => {
+    if (!m.pe[i] || !m.niGrowth[i] || m.niGrowth[i] <= 0) return null;
+    return m.pe[i] / (m.niGrowth[i] * 100);
+  });
+
+  // ── 8. 风险与质量 ─────────────────────────────────────────
+  m.arRatio        = arr(i => safe(d.ar[i], d.revenue[i]));
+  m.goodwillRatio  = arr(i => safe(d.goodwill[i], d.totalAssets[i]));
+  m.relatedRatio   = arr(i => safe(d.relatedParty[i], d.revenue[i]));
+  m.sgaRatio       = arr(i => safe(d.sga[i], d.revenue[i]));
+  m.rndRatio       = arr(i => safe(d.rnd[i], d.revenue[i]));
+  m.payoutRatio    = arr(i => safe(d.divid[i], d.netIncome[i]));
+
+  return m;
+}
+
+// ============================================================
+//  FORMAT
+// ============================================================
+function fmt(v, type, decimals) {
+  if (v === null || v === undefined || isNaN(v) || !isFinite(v))
+    return '<span class="na-val">N/A</span>';
+  if (type === 'pct') return (v * 100).toFixed(decimals ?? 1) + '%';
+  if (type === 'x')   return v.toFixed(decimals ?? 2) + 'x';
+  if (type === 'days')return v.toFixed(decimals ?? 1) + 'd';
+  if (type === 'num') return v.toFixed(decimals ?? 2);
+  return v.toFixed(2);
+}
+
+function fmtMoney(v) {
+  const unit = parseInt(document.getElementById('unit').value);
+  const vv = v / unit;
+  if (Math.abs(vv) >= 1e9) return (vv/1e9).toFixed(2) + 'B';
+  if (Math.abs(vv) >= 1e6) return (vv/1e6).toFixed(2) + 'M';
+  if (Math.abs(vv) >= 1e3) return (vv/1e3).toFixed(1) + 'K';
+  return vv.toFixed(0);
+}
+
+function changeBadge(v2, v1) {
+  if (v1 === null || v2 === null || v1 === undefined || v2 === undefined) return '';
+  if (isNaN(v1) || isNaN(v2) || !isFinite(v1) || !isFinite(v2)) return '';
+  const delta = v2 - v1;
+  if (Math.abs(delta) < 1e-10) return '<span class="change-badge change-neutral">→</span>';
+  const up = delta > 0;
+  const pctStr = Math.abs(v1) > 1e-10 ? ' ' + (Math.abs(delta/v1)*100).toFixed(1)+'%' : '';
+  return `<span class="change-badge ${up ? 'change-up' : 'change-down'}">${up ? '↑' : '↓'}${pctStr}</span>`;
+}
+
+// ============================================================
+//  THRESHOLD CHECK
+// ============================================================
+function checkThreshold(id, val) {
+  if (val === null || isNaN(val)) return '';
+  const t = thresholds.find(t => t.id === id);
+  if (!t) return '';
+  if (t.dangerLow !== null && val < t.dangerLow) return 'danger';
+  if (t.dangerHigh !== null && val > t.dangerHigh) return 'danger';
+  if (t.warnLow !== null && val < t.warnLow) return 'warn';
+  if (t.warnHigh !== null && val > t.warnHigh) return 'warn';
+  return '';
+}
+
+function alertClass(threshId, val) {
+  const c = checkThreshold(threshId, val);
+  if (c === 'danger') return 'val-alert';
+  if (c === 'warn') return 'val-warn';
+  return '';
+}
+
+// ============================================================
+//  RENDER
+// ============================================================
+let chartInstances = [];
+
+function destroyCharts() {
+  chartInstances.forEach(c => { try { c.destroy(); } catch(e){} });
+  chartInstances = [];
+}
+
+function calculate() {
+  const d = getData();
+
+  // basic check
+  if (d.revenue.every(v => v === 0)) {
+    alert('请先填写营业收入等基础数据，或点击「示例数据」体验功能。');
+    return;
+  }
+
+  setLoading(true);
+  setTimeout(() => {
+    try {
+      destroyCharts();
+      const m = calcMetrics(d);
+      const years = getYears();
+      renderResults(d, m, years);
+      document.getElementById('empty-state').style.display = 'none';
+      document.getElementById('results').style.display = 'block';
+    } catch(e) {
+      console.error(e);
+      alert('计算出错: ' + e.message);
+    }
+    setLoading(false);
+  }, 50);
+}
+
+function setLoading(on) {
+  const bar = document.getElementById('loading-bar');
+  bar.style.width = on ? '70%' : '100%';
+  if (!on) setTimeout(() => { bar.style.width = '0'; }, 300);
+}
+
+function renderResults(d, m, years) {
+  const company = document.getElementById('company-name').value || '目标公司';
+  const currency = document.getElementById('currency').value || '人民币';
+  const unitLabel = { '1':'元', '10000':'万元', '100000000':'亿元' }[document.getElementById('unit').value] || '万元';
+
+  const container = document.getElementById('results');
+
+  // Score calculation
+  const score = calcScore(m);
+
+  container.innerHTML = `
+    <div id="score-panel">
+      <div class="score-circle score-${score.grade}">
+        <span class="score-num">${score.grade}</span>
+        <span class="score-label">${score.total}分</span>
+      </div>
+      <div class="score-desc">
+        <h3>${company} · 综合财务评分</h3>
+        <p style="color:var(--gray-500);font-size:12px;">${currency} · ${unitLabel} · ${years[0]}–${years[2]}</p>
+        <p style="margin-top:6px;font-size:12px;color:var(--gray-600);">${score.summary}</p>
+      </div>
+      <div class="score-bars">
+        ${score.dims.map(dim => `
+          <div class="score-bar-row">
+            <span class="score-bar-label">${dim.label}</span>
+            <div class="score-bar-track"><div class="score-bar-fill" style="width:${dim.pct}%;background:${dim.color}"></div></div>
+            <span class="score-bar-val" style="color:${dim.color}">${dim.pts}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <div id="summary-cards">
+      ${makeSummaryCard('营业收入(最新)', fmtMoney(d.revenue[2]) + unitLabel, m.revenueGrowth[2] !== null ? fmt(m.revenueGrowth[2],'pct') + ' YoY' : years[2])}
+      ${makeSummaryCard('净利润(最新)', fmtMoney(d.netIncome[2]) + unitLabel, m.niGrowth[2] !== null ? fmt(m.niGrowth[2],'pct') + ' YoY' : years[2])}
+      ${makeSummaryCard('毛利率(最新)', fmt(m.grossMargin[2],'pct'), '毛利 ' + fmtMoney(d.grossProfit[2]) + unitLabel)}
+      ${makeSummaryCard('ROE(最新)', fmt(m.roe[2],'pct'), '净资产 ' + fmtMoney(d.equity[2]) + unitLabel)}
+    </div>
+  `;
+
+  // Sections
+  const sections = [
+    {
+      id:'profitability', icon:'💹', color:'#dcfce7', title:'盈利能力',
+      metrics:[
+        { idx:1,  id:'grossMargin',   label:'毛利率',         vals:m.grossMargin,   type:'pct', threshId:'grossMargin' },
+        { idx:2,  id:'ebitdaMargin',  label:'EBITDA利润率',   vals:m.ebitdaMargin,  type:'pct' },
+        { idx:3,  id:'ebitMargin',    label:'EBIT利润率',     vals:m.ebitMargin,    type:'pct' },
+        { idx:4,  id:'netMargin',     label:'净利率',         vals:m.netMargin,     type:'pct', threshId:'netMargin' },
+        { idx:5,  id:'roe',           label:'ROE',            vals:m.roe,           type:'pct', threshId:'roe' },
+        { idx:6,  id:'roa',           label:'ROA',            vals:m.roa,           type:'pct' },
+        { idx:7,  id:'roce',          label:'ROCE',           vals:m.roce,          type:'pct' },
+        { idx:8,  id:'opLeverage',    label:'经营杠杆系数',   vals:m.opLeverage,    type:'x' },
+      ],
+      charts: [
+        { title:'利润率趋势', type:'line', labels:years, datasets:[
+          { label:'毛利率', data:m.grossMargin.map(v=>v!==null?+(v*100).toFixed(2):null), borderColor:'#3b82f6', backgroundColor:'#bfdbfe30' },
+          { label:'净利率', data:m.netMargin.map(v=>v!==null?+(v*100).toFixed(2):null), borderColor:'#10b981', backgroundColor:'#a7f3d030' },
+          { label:'EBIT率', data:m.ebitMargin.map(v=>v!==null?+(v*100).toFixed(2):null), borderColor:'#f59e0b', backgroundColor:'#fde68a30' },
+        ]},
+        { title:'ROE / ROA 趋势', type:'bar', labels:years, datasets:[
+          { label:'ROE', data:m.roe.map(v=>v!==null?+(v*100).toFixed(2):null), backgroundColor:'#6366f1' },
+          { label:'ROA', data:m.roa.map(v=>v!==null?+(v*100).toFixed(2):null), backgroundColor:'#ec4899' },
+        ]},
+      ]
+    },
+    {
+      id:'dupont', icon:'🔬', color:'#dbeafe', title:'DuPont 拆解',
+      metrics:[
+        { idx:9,  id:'dupont_nm',     label:'净利率 (DuPont)',  vals:m.dupont_netMargin,  type:'pct' },
+        { idx:10, id:'aturnover',     label:'资产周转率',       vals:m.assetTurnover,     type:'x' },
+        { idx:11, id:'emultiplier',   label:'权益乘数',         vals:m.equityMultiplier,  type:'x' },
+        { idx:12, id:'taxBurden',     label:'税负率',           vals:m.taxBurden,         type:'pct' },
+        { idx:13, id:'intBurden',     label:'利息负担率',       vals:m.interestBurden,    type:'x' },
+      ],
+      charts: [
+        { title:'DuPont 三因素', type:'bar', labels:years, datasets:[
+          { label:'净利率%', data:m.netMargin.map(v=>v!==null?+(v*100).toFixed(2):null), backgroundColor:'#3b82f6' },
+          { label:'资产周转率', data:m.assetTurnover.map(v=>v!==null?+v.toFixed(3):null), backgroundColor:'#10b981' },
+          { label:'权益乘数', data:m.equityMultiplier.map(v=>v!==null?+v.toFixed(2):null), backgroundColor:'#f59e0b' },
+        ]},
+        { title:'税负率 & 利息负担率', type:'line', labels:years, datasets:[
+          { label:'税负率%', data:m.taxBurden.map(v=>v!==null?+(v*100).toFixed(2):null), borderColor:'#ef4444' },
+          { label:'利息负担率', data:m.interestBurden.map(v=>v!==null?+v.toFixed(3):null), borderColor:'#8b5cf6' },
+        ]},
+      ]
+    },
+    {
+      id:'efficiency', icon:'⚙️', color:'#fef3c7', title:'运营效率',
+      metrics:[
+        { idx:14, id:'tat',     label:'总资产周转率',       vals:m.totalAssetTurnover, type:'x' },
+        { idx:15, id:'fat',     label:'固定资产周转率',     vals:m.fixedAssetTurnover, type:'x' },
+        { idx:16, id:'dso',     label:'DSO应收账款周转天数',vals:m.dso,                type:'days' },
+        { idx:17, id:'dio',     label:'存货周转天数',       vals:m.dio,                type:'days' },
+        { idx:18, id:'dpo',     label:'DPO应付账款周转天数',vals:m.dpo,                type:'days' },
+        { idx:19, id:'ccc',     label:'现金转换周期CCC',    vals:m.ccc,                type:'days' },
+      ],
+      charts: [
+        { title:'现金转换周期（天）', type:'bar', labels:years, datasets:[
+          { label:'DSO', data:m.dso.map(v=>v!==null?+v.toFixed(1):null), backgroundColor:'#3b82f6' },
+          { label:'DIO', data:m.dio.map(v=>v!==null?+v.toFixed(1):null), backgroundColor:'#f59e0b' },
+          { label:'DPO', data:m.dpo.map(v=>v!==null?+(-v).toFixed(1):null), backgroundColor:'#10b981' },
+        ]},
+        { title:'资产周转率', type:'line', labels:years, datasets:[
+          { label:'总资产周转率', data:m.totalAssetTurnover.map(v=>v!==null?+v.toFixed(3):null), borderColor:'#6366f1' },
+          { label:'固定资产周转率', data:m.fixedAssetTurnover.map(v=>v!==null?+v.toFixed(3):null), borderColor:'#ec4899' },
+        ]},
+      ]
+    },
+    {
+      id:'leverage', icon:'⚖️', color:'#fce7f3', title:'偿债与杠杆',
+      metrics:[
+        { idx:20, id:'debtRatio',    label:'资产负债率',       vals:m.debtRatio,    type:'pct', threshId:'debtRatio' },
+        { idx:21, id:'netDebtRatio', label:'净负债率',         vals:m.netDebtRatio, type:'pct' },
+        { idx:22, id:'debtEbitda',   label:'债务/EBITDA',      vals:m.debtEbitda,   type:'x',  threshId:'debtEbitda' },
+        { idx:23, id:'icr',          label:'利息覆盖倍数ICR',  vals:m.icr,          type:'x',  threshId:'icr' },
+        { idx:24, id:'currentRatio', label:'流动比率',         vals:m.currentRatio, type:'x',  threshId:'currentRatio' },
+        { idx:25, id:'quickRatio',   label:'速动比率',         vals:m.quickRatio,   type:'x',  threshId:'quickRatio' },
+        { idx:26, id:'cashRatio',    label:'现金比率',         vals:m.cashRatio,    type:'x' },
+      ],
+      charts: [
+        { title:'流动性指标', type:'bar', labels:years, datasets:[
+          { label:'流动比率', data:m.currentRatio.map(v=>v!==null?+v.toFixed(3):null), backgroundColor:'#3b82f6' },
+          { label:'速动比率', data:m.quickRatio.map(v=>v!==null?+v.toFixed(3):null), backgroundColor:'#10b981' },
+          { label:'现金比率', data:m.cashRatio.map(v=>v!==null?+v.toFixed(3):null), backgroundColor:'#f59e0b' },
+        ]},
+        { title:'杠杆指标', type:'line', labels:years, datasets:[
+          { label:'资产负债率%', data:m.debtRatio.map(v=>v!==null?+(v*100).toFixed(2):null), borderColor:'#ef4444' },
+          { label:'ICR(x)', data:m.icr.map(v=>v!==null?+v.toFixed(2):null), borderColor:'#6366f1' },
+        ]},
+      ]
+    },
+    {
+      id:'cashflow', icon:'💵', color:'#ecfdf5', title:'现金流质量',
+      metrics:[
+        { idx:27, id:'cfo2ni',    label:'经营现金流/净利润',   vals:m.cfo2ni,    type:'x',  threshId:'cfo2ni' },
+        { idx:28, id:'fcf',       label:'自由现金流FCF',       vals:m.fcf,       type:'num' },
+        { idx:29, id:'fcfMargin', label:'FCF利润率',           vals:m.fcfMargin, type:'pct' },
+        { idx:30, id:'capexDa',   label:'资本开支/折旧',       vals:m.capexDa,   type:'x' },
+        { idx:31, id:'capexRev',  label:'资本开支/营收',       vals:m.capexRev,  type:'pct' },
+      ],
+      charts: [
+        { title:'现金流 vs 净利润', type:'bar', labels:years, datasets:[
+          { label:'经营现金流', data:d.cfo, backgroundColor:'#3b82f6' },
+          { label:'净利润',    data:d.netIncome, backgroundColor:'#10b981' },
+          { label:'FCF',       data:m.fcf, backgroundColor:'#f59e0b' },
+        ]},
+        { title:'FCF利润率 & 利润含金量', type:'line', labels:years, datasets:[
+          { label:'FCF利润率%', data:m.fcfMargin.map(v=>v!==null?+(v*100).toFixed(2):null), borderColor:'#3b82f6' },
+          { label:'利润含金量', data:m.cfo2ni.map(v=>v!==null?+v.toFixed(3):null), borderColor:'#10b981' },
+        ]},
+      ]
+    },
+    {
+      id:'growth', icon:'📈', color:'#ede9fe', title:'成长性',
+      metrics:[
+        { idx:32, id:'revGrowth',   label:'营收同比增长率',     vals:m.revenueGrowth, type:'pct' },
+        { idx:33, id:'niGrowth',    label:'净利润同比增长率',   vals:m.niGrowth,      type:'pct' },
+        { idx:34, id:'ebitdaGrowth',label:'EBITDA同比增长率',   vals:m.ebitdaGrowth,  type:'pct' },
+        { idx:35, id:'gpGrowth',    label:'毛利润同比增长率',   vals:m.gpGrowth,      type:'pct' },
+        { idx:36, id:'revCagr',     label:'3年营收CAGR',         vals:m.revenueCagr,   type:'pct' },
+        { idx:37, id:'niCagr',      label:'3年净利润CAGR',       vals:m.niCagr,        type:'pct' },
+      ],
+      charts: [
+        { title:'营收与净利润趋势', type:'bar', labels:years, datasets:[
+          { label:'营业收入', data:d.revenue, backgroundColor:'#3b82f6' },
+          { label:'净利润',   data:d.netIncome, backgroundColor:'#10b981' },
+        ]},
+        { title:'同比增长率（%）', type:'line', labels:years, datasets:[
+          { label:'营收增长', data:m.revenueGrowth.map(v=>v!==null?+(v*100).toFixed(2):null), borderColor:'#3b82f6' },
+          { label:'净利增长', data:m.niGrowth.map(v=>v!==null?+(v*100).toFixed(2):null), borderColor:'#10b981' },
+        ]},
+      ]
+    },
+    {
+      id:'valuation', icon:'🏷️', color:'#fff7ed', title:'估值',
+      metrics:[
+        { idx:38, id:'pe',      label:'P/E',         vals:m.pe,      type:'x' },
+        { idx:39, id:'pb',      label:'P/B',         vals:m.pb,      type:'x' },
+        { idx:40, id:'evEbitda',label:'EV/EBITDA',   vals:m.evEbitda,type:'x' },
+        { idx:41, id:'evEbit',  label:'EV/EBIT',     vals:m.evEbit,  type:'x' },
+        { idx:42, id:'pFcf',    label:'P/FCF',       vals:m.pFcf,    type:'x' },
+        { idx:43, id:'peg',     label:'PEG',         vals:m.peg,     type:'x' },
+      ],
+      charts: [
+        { title:'P/E & P/B 趋势', type:'bar', labels:years, datasets:[
+          { label:'P/E', data:m.pe.map(v=>v!==null?+v.toFixed(2):null), backgroundColor:'#6366f1' },
+          { label:'P/B', data:m.pb.map(v=>v!==null?+v.toFixed(2):null), backgroundColor:'#ec4899' },
+        ]},
+        { title:'EV/EBITDA & EV/EBIT', type:'line', labels:years, datasets:[
+          { label:'EV/EBITDA', data:m.evEbitda.map(v=>v!==null?+v.toFixed(2):null), borderColor:'#f59e0b' },
+          { label:'EV/EBIT',   data:m.evEbit.map(v=>v!==null?+v.toFixed(2):null), borderColor:'#ef4444' },
+        ]},
+      ]
+    },
+    {
+      id:'risk', icon:'🛡️', color:'#fef2f2', title:'风险与质量',
+      metrics:[
+        { idx:44, id:'arRatio',      label:'应收账款/营收',   vals:m.arRatio,      type:'pct' },
+        { idx:45, id:'goodwillRatio',label:'商誉/总资产',     vals:m.goodwillRatio,type:'pct', threshId:'goodwillRatio' },
+        { idx:46, id:'relatedRatio', label:'关联交易/营收',   vals:m.relatedRatio, type:'pct' },
+        { idx:47, id:'sgaRatio',     label:'SG&A/营收',       vals:m.sgaRatio,     type:'pct' },
+        { idx:48, id:'rndRatio',     label:'研发投入/营收',   vals:m.rndRatio,     type:'pct' },
+        { idx:49, id:'payoutRatio',  label:'股息支付率',      vals:m.payoutRatio,  type:'pct' },
+      ],
+      charts: [
+        { title:'质量指标占比（%）', type:'bar', labels:years, datasets:[
+          { label:'AR/营收', data:m.arRatio.map(v=>v!==null?+(v*100).toFixed(2):null), backgroundColor:'#ef4444' },
+          { label:'商誉/总资产', data:m.goodwillRatio.map(v=>v!==null?+(v*100).toFixed(2):null), backgroundColor:'#f59e0b' },
+          { label:'关联交易/营收', data:m.relatedRatio.map(v=>v!==null?+(v*100).toFixed(2):null), backgroundColor:'#8b5cf6' },
+        ]},
+        { title:'费用结构（%）', type:'bar', labels:years, datasets:[
+          { label:'SG&A/营收', data:m.sgaRatio.map(v=>v!==null?+(v*100).toFixed(2):null), backgroundColor:'#3b82f6' },
+          { label:'研发/营收', data:m.rndRatio.map(v=>v!==null?+(v*100).toFixed(2):null), backgroundColor:'#10b981' },
+          { label:'股息支付率', data:m.payoutRatio.map(v=>v!==null?+(v*100).toFixed(2):null), backgroundColor:'#6366f1' },
+        ]},
+      ]
+    },
+  ];
+
+  sections.forEach(sec => {
+    const div = buildSection(sec, years);
+    container.appendChild(div);
+  });
+
+  // render charts after DOM insertion
+  requestAnimationFrame(() => {
+    sections.forEach(sec => {
+      sec.charts.forEach((chart, ci) => {
+        const canvasId = `chart_${sec.id}_${ci}`;
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const instance = new Chart(ctx, {
+          type: chart.type,
+          data: {
+            labels: chart.labels,
+            datasets: chart.datasets.map(ds => ({
+              ...ds,
+              tension: 0.3,
+              fill: ds.type === 'line',
+              pointRadius: 4,
+              borderWidth: 2,
+            }))
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 10, padding: 8 } },
+              tooltip: { mode: 'index', intersect: false }
+            },
+            scales: {
+              x: { ticks: { font: { size: 10 } } },
+              y: { ticks: { font: { size: 10 } } }
+            }
+          }
+        });
+        chartInstances.push(instance);
+      });
+    });
+  });
+}
+
+function buildSection(sec, years) {
+  const div = document.createElement('div');
+  div.className = 'result-section';
+
+  // header
+  const hdr = document.createElement('div');
+  hdr.className = 'result-section-header';
+  hdr.innerHTML = `
+    <div class="result-section-title">
+      <div class="section-icon" style="background:${sec.color}">${sec.icon}</div>
+      ${sec.title}
+      <span style="font-size:11px;color:var(--gray-400);font-weight:400;">（${sec.metrics.length}个指标）</span>
+    </div>
+    <span style="color:var(--gray-400);font-size:12px;">▼</span>
+  `;
+  hdr.addEventListener('click', () => {
+    const body = div.querySelector('.result-section-body');
+    body.classList.toggle('collapsed');
+    hdr.querySelector('span:last-child').textContent = body.classList.contains('collapsed') ? '▶' : '▼';
+  });
+  div.appendChild(hdr);
+
+  // body
+  const body = document.createElement('div');
+  body.className = 'result-section-body';
+
+  // chart row
+  const chartsRow = document.createElement('div');
+  chartsRow.className = 'charts-row';
+  sec.charts.forEach((chart, ci) => {
+    const box = document.createElement('div');
+    box.className = 'chart-box';
+    box.innerHTML = `<h4>${chart.title}</h4><canvas id="chart_${sec.id}_${ci}"></canvas>`;
+    chartsRow.appendChild(box);
+  });
+  body.appendChild(chartsRow);
+
+  // metric table
+  const tableWrap = document.createElement('div');
+  let tableHtml = `<table class="metric-table">
+    <thead><tr>
+      <th>指标</th>
+      <th>${years[0]}</th><th></th>
+      <th>${years[1]}</th><th></th>
+      <th>${years[2]}</th>
+    </tr></thead>
+    <tbody>`;
+
+  sec.metrics.forEach(metric => {
+    const v = metric.vals;
+    const ac0 = metric.threshId ? alertClass(metric.threshId, v[0]) : '';
+    const ac1 = metric.threshId ? alertClass(metric.threshId, v[1]) : '';
+    const ac2 = metric.threshId ? alertClass(metric.threshId, v[2]) : '';
+
+    // row alert class
+    const rowAlert = (ac0 === 'val-alert' || ac1 === 'val-alert' || ac2 === 'val-alert') ? 'alert-high'
+                   : (ac0 === 'val-warn'  || ac1 === 'val-warn'  || ac2 === 'val-warn')  ? 'alert-medium' : '';
+
+    tableHtml += `<tr class="${rowAlert}">
+      <td><span class="metric-idx">${metric.idx}.</span>${metric.label}</td>
+      <td class="metric-num ${ac0}">${fmt(v[0], metric.type)}</td>
+      <td></td>
+      <td class="metric-num ${ac1}">${fmt(v[1], metric.type)}${changeBadge(v[1], v[0])}</td>
+      <td></td>
+      <td class="metric-num ${ac2}">${fmt(v[2], metric.type)}${changeBadge(v[2], v[1])}</td>
+    </tr>`;
+  });
+
+  tableHtml += '</tbody></table>';
+  tableWrap.innerHTML = tableHtml;
+  body.appendChild(tableWrap);
+  div.appendChild(body);
+  return div;
+}
+
+function makeSummaryCard(label, value, sub) {
+  return `<div class="summary-card">
+    <div class="summary-card-label">${label}</div>
+    <div class="summary-card-value">${value}</div>
+    <div class="summary-card-sub">${sub}</div>
+  </div>`;
+}
+
+// ============================================================
+//  SCORING
+// ============================================================
+function calcScore(m) {
+  // each dimension 0-20 pts
+  const latest = i => v => v[i];
+  const l = 2; // latest year index
+
+  function scoreVal(val, good, ok) {
+    if (val === null || isNaN(val)) return 10;
+    if (val >= good) return 20;
+    if (val >= ok) return Math.round(10 + (val - ok) / (good - ok) * 10);
+    if (val >= 0) return Math.round(val / ok * 10);
+    return 0;
+  }
+
+  const profScore = Math.round((
+    scoreVal(m.grossMargin[l], 0.4, 0.2) +
+    scoreVal(m.netMargin[l], 0.15, 0.05) +
+    scoreVal(m.roe[l], 0.20, 0.10) +
+    scoreVal(m.roa[l], 0.08, 0.03)
+  ) / 4);
+
+  const effScore = Math.round((
+    scoreVal(m.totalAssetTurnover[l], 1.5, 0.5) +
+    (m.ccc[l] !== null ? scoreVal(60 / (Math.max(m.ccc[l], 1)), 1, 0.3) : 10)
+  ) / 2);
+
+  const levScore = Math.round((
+    scoreVal(1 - (m.debtRatio[l] ?? 0.5), 0.5, 0.3) +
+    scoreVal(m.icr[l] ?? 0, 5, 2) +
+    scoreVal(m.currentRatio[l] ?? 0, 2, 1)
+  ) / 3);
+
+  const cfScore = Math.round((
+    scoreVal(m.cfo2ni[l] ?? 0, 1.2, 0.8) +
+    scoreVal(m.fcfMargin[l] ?? 0, 0.10, 0.03)
+  ) / 2);
+
+  const growthScore = Math.round((
+    scoreVal(m.revenueGrowth[l] ?? 0, 0.20, 0.05) +
+    scoreVal(m.niGrowth[l] ?? 0, 0.20, 0.05)
+  ) / 2);
+
+  const dims = [
+    { label:'盈利能力', pts: profScore,   pct: profScore*5,   color: '#10b981' },
+    { label:'运营效率', pts: effScore,    pct: effScore*5,    color: '#3b82f6' },
+    { label:'偿债安全', pts: levScore,    pct: levScore*5,    color: '#6366f1' },
+    { label:'现金质量', pts: cfScore,     pct: cfScore*5,     color: '#f59e0b' },
+    { label:'成长潜力', pts: growthScore, pct: growthScore*5, color: '#ec4899' },
+  ];
+  const total = Math.round(dims.reduce((s,d) => s + d.pts, 0) / dims.length);
+  const grade = total >= 16 ? 'A' : total >= 12 ? 'B' : total >= 8 ? 'C' : 'D';
+  const summaries = {
+    A: '综合财务状况优秀，盈利能力强、现金流充裕、杠杆适中。',
+    B: '财务状况良好，部分指标有改善空间，整体风险可控。',
+    C: '财务状况一般，存在若干需要关注的风险指标，建议深入分析。',
+    D: '财务存在较明显问题，需重点审查债务、盈利和现金流状况。',
+  };
+  return { total, grade, dims, summary: summaries[grade] };
+}
+
+// ============================================================
+//  SECTION TOGGLE
+// ============================================================
+function toggleSection(titleEl) {
+  const body = titleEl.nextElementSibling;
+  if (!body) return;
+  body.classList.toggle('collapsed');
+  const tog = titleEl.querySelector('.section-toggle');
+  if (tog) tog.textContent = body.classList.contains('collapsed') ? '▶' : '▼';
+}
+
+// ============================================================
+//  THRESHOLDS MODAL
+// ============================================================
+function openThresholds() {
+  const container = document.getElementById('threshold-rows');
+  container.innerHTML = '';
+  thresholds.forEach((t, i) => {
+    const row = document.createElement('div');
+    row.className = 'threshold-row';
+    row.innerHTML = `
+      <label>${t.label}</label>
+      <input type="number" step="any" id="thr_warn_${i}" value="${t.warnLow ?? t.warnHigh ?? ''}" placeholder="—">
+      <input type="number" step="any" id="thr_danger_${i}" value="${t.dangerLow ?? t.dangerHigh ?? ''}" placeholder="—">
+    `;
+    container.appendChild(row);
+  });
+  document.getElementById('modal-overlay').style.display = 'flex';
+}
+function closeThresholds() {
+  // save values
+  thresholds.forEach((t, i) => {
+    const wEl = document.getElementById('thr_warn_' + i);
+    const dEl = document.getElementById('thr_danger_' + i);
+    if (!wEl || !dEl) return;
+    const wv = parseFloat(wEl.value);
+    const dv = parseFloat(dEl.value);
+    if (t.warnLow !== null) t.warnLow = isNaN(wv) ? null : wv;
+    else if (t.warnHigh !== null) t.warnHigh = isNaN(wv) ? null : wv;
+    if (t.dangerLow !== null) t.dangerLow = isNaN(dv) ? null : dv;
+    else if (t.dangerHigh !== null) t.dangerHigh = isNaN(dv) ? null : dv;
+  });
+  document.getElementById('modal-overlay').style.display = 'none';
+}
+function resetThresholds() {
+  thresholds = JSON.parse(JSON.stringify(DEFAULT_THRESHOLDS));
+  openThresholds();
+}
+
+// ============================================================
+//  PDF EXPORT
+// ============================================================
+function exportPDF() {
+  const results = document.getElementById('results');
+  if (results.style.display === 'none') {
+    alert('请先点击「计算分析」生成报告。');
+    return;
+  }
+  const company = document.getElementById('company-name').value || '财务分析报告';
+  const opt = {
+    margin: [8, 8, 8, 8],
+    filename: company + '_财务分析报告.pdf',
+    image: { type: 'jpeg', quality: 0.92 },
+    html2canvas: { scale: 1.5, useCORS: true, logging: false },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+  };
+  // Temporarily expand main for PDF
+  const main = document.getElementById('main');
+  const origOverflow = main.style.overflow;
+  main.style.overflow = 'visible';
+
+  html2pdf().set(opt).from(document.getElementById('results')).save().then(() => {
+    main.style.overflow = origOverflow;
+  });
+}
+
+// ============================================================
+//  DEMO DATA
+// ============================================================
+function loadDemo() {
+  const demo = {
+    // IS
+    revenue_y1: 8200000, revenue_y2: 9850000, revenue_y3: 11420000,
+    cogs_y1: 4920000, cogs_y2: 5714000, cogs_y3: 6394000,
+    sga_y1: 1230000, sga_y2: 1380000, sga_y3: 1542000,
+    da_y1: 410000, da_y2: 492000, da_y3: 571000,
+    interest_y1: 82000, interest_y2: 74000, interest_y3: 65000,
+    ebt_y1: 1622000, ebt_y2: 2290000, ebt_y3: 2838000,
+    tax_y1: 406000, tax_y2: 572000, tax_y3: 709000,
+    netIncome_y1: 1216000, netIncome_y2: 1718000, netIncome_y3: 2129000,
+    // BS
+    cash_y1: 980000, cash_y2: 1580000, cash_y3: 2260000,
+    ar_y1: 1230000, ar_y2: 1355000, ar_y3: 1485000,
+    inventory_y1: 820000, inventory_y2: 886000, inventory_y3: 958000,
+    currentAssets_y1: 3280000, currentAssets_y2: 4100000, currentAssets_y3: 5050000,
+    totalAssets_y1: 9840000, totalAssets_y2: 11400000, totalAssets_y3: 13200000,
+    ap_y1: 615000, ap_y2: 689000, ap_y3: 756000,
+    currentLiab_y1: 2050000, currentLiab_y2: 2180000, currentLiab_y3: 2290000,
+    stDebt_y1: 410000, stDebt_y2: 328000, stDebt_y3: 246000,
+    ltDebt_y1: 820000, ltDebt_y2: 656000, ltDebt_y3: 492000,
+    totalLiab_y1: 3690000, totalLiab_y2: 3720000, totalLiab_y3: 3740000,
+    equity_y1: 6150000, equity_y2: 7680000, equity_y3: 9460000,
+    goodwill_y1: 492000, goodwill_y2: 492000, goodwill_y3: 492000,
+    ppe_y1: 3280000, ppe_y2: 3772000, ppe_y3: 4100000,
+    relatedParty_y1: 164000, relatedParty_y2: 148000, relatedParty_y3: 137000,
+    // CF
+    cfo_y1: 1476000, cfo_y2: 2066000, cfo_y3: 2540000,
+    capex_y1: 410000, capex_y2: 492000, capex_y3: 328000,
+    divid_y1: 243000, divid_y2: 344000, divid_y3: 426000,
+    rnd_y1: 164000, rnd_y2: 197000, rnd_y3: 228000,
+    // Market
+    mktCap_y1: 18000000, mktCap_y2: 25000000, mktCap_y3: 31000000,
+    netDebt_y1: 252000, netDebt_y2: -596000, netDebt_y3: -1522000,
+  };
+
+  document.getElementById('company-name').value = '示例科技股份有限公司';
+  document.getElementById('currency').value = '人民币';
+  document.getElementById('unit').value = '1';
+  document.getElementById('year1').value = '2022';
+  document.getElementById('year2').value = '2023';
+  document.getElementById('year3').value = '2024';
+
+  Object.entries(demo).forEach(([id, val]) => {
+    const el = document.getElementById(id);
+    if (el) { el.value = val; el.readOnly ? null : null; }
+  });
+  autoCalc();
+}
+
+// ============================================================
+//  CLEAR
+// ============================================================
+function clearAll() {
+  if (!confirm('确认清空所有输入数据？')) return;
+  document.querySelectorAll('.finput:not([readonly])').forEach(el => el.value = '');
+  autoCalc();
+  document.getElementById('empty-state').style.display = 'flex';
+  document.getElementById('results').style.display = 'none';
+  destroyCharts();
+}
+
+// ============================================================
+//  INIT
+// ============================================================
+buildInputs();
+autoCalc();
+
+// sync year headers on change
+['year1','year2','year3'].forEach(id => {
+  document.getElementById(id).addEventListener('input', syncYearHeaders);
+});
+syncYearHeaders();
+</script>
+</body>
+</html>

@@ -1932,9 +1932,12 @@ async function processPdf(file) {
     window._lastExtractData = extractedData;
 
   } catch(e) {
-    const msg = e.message || String(e);
+    let msg = e.message || String(e);
+    if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror') || msg.toLowerCase().includes('load failed')) {
+      msg = '网络错误：无法连接 api.anthropic.com。可能原因：①公司防火墙拦截了该域名 ②API Key未配置 ③浏览器插件阻止了请求。请检查网络或联系IT。';
+    }
     const step = msg.startsWith('API') ? 'step-api' : 'step-fill';
-    setStep(step, 'error', msg.substring(0,80), 'badge-error');
+    setStep(step, 'error', msg.substring(0,120), 'badge-error');
     console.error('[PDF Extract]', e);
   }
 }
@@ -2047,6 +2050,7 @@ async function callClaudeApi(apiKey, base64Pdf, lang) {
       'anthropic-version': '2023-06-01',
       'content-type': 'application/json',
       'anthropic-dangerous-direct-browser-calls': 'true',
+      'anthropic-beta': 'pdfs-2024-09-25',
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',

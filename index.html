@@ -1951,11 +1951,17 @@ async function processPdf(file) {
 
   } catch(e) {
     let msg = e.message || String(e);
+    const proxyConfigured = !!localStorage.getItem('fa_proxy_url');
     if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror') || msg.toLowerCase().includes('load failed')) {
-      msg = '网络错误：无法连接 api.anthropic.com。可能原因：①公司防火墙拦截了该域名 ②API Key未配置 ③浏览器插件阻止了请求。请检查网络或联系IT。';
+      if (proxyConfigured) {
+        const workerUrl = localStorage.getItem('fa_proxy_url');
+        msg = `网络错误：Worker 请求失败（${workerUrl.substring(0,40)}）。请确认 Worker 已正常部署，或检查浏览器控制台(F12)查看详细错误。`;
+      } else {
+        msg = '网络错误：CORS 跨域拦截。请在「API设置」中填入 Cloudflare Worker 代理 URL 后重试。';
+      }
     }
     const step = msg.startsWith('API') ? 'step-api' : 'step-fill';
-    setStep(step, 'error', msg.substring(0,120), 'badge-error');
+    setStep(step, 'error', msg.substring(0,160), 'badge-error');
     console.error('[PDF Extract]', e);
   }
 }
@@ -2086,14 +2092,12 @@ async function callClaudeApi(apiKey, base64Pdf, lang) {
 
   let endpoint, fetchHeaders;
   if (proxyUrl) {
-    // Via Cloudflare Worker proxy — Worker adds Anthropic-specific headers server-side
     endpoint = proxyUrl;
     fetchHeaders = {
       'x-api-key': apiKey,
       'content-type': 'application/json',
     };
   } else {
-    // Direct browser call (may fail CORS on hosted pages — use proxy to fix)
     endpoint = 'https://api.anthropic.com/v1/messages';
     fetchHeaders = {
       'x-api-key': apiKey,
@@ -2104,6 +2108,7 @@ async function callClaudeApi(apiKey, base64Pdf, lang) {
     };
   }
 
+  console.log('[Claude API] endpoint:', endpoint, '| proxy configured:', !!proxyUrl);
   const response = await fetch(endpoint, { method: 'POST', headers: fetchHeaders, body: requestBody });
 
   if (!response.ok) {
